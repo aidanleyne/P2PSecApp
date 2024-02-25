@@ -1,8 +1,14 @@
 # P2PSecApp
 A P2P Secure Communication Application for W24 CISC 468.
 
-## Members: Aiadan Leyne, Sean Liang
-## Languages Chosen: Python, JavaSvcript
+## Members:
+1. Aiadan Leyne
+2. Sean Liang
+
+
+## Languages Chosen: 
+1. Python
+2. JavaSvcript
 
 ## About the project:
 - Each user has a 2048-bit RSA key-pair for encyption and decryption
