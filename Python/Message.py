@@ -16,8 +16,8 @@ class Message:
     Requires: ms - plaintext (str)
     Returns: N/A
     """
-    def set_message(self, msg):
-        self.message = crypto.encrypt(str(len(msg) + ':' +  msg))
+    def set_message(self, msg, key):
+        self.message = crypto.encrypt(str(len(msg) + ':' +  msg), key)
 
     """
     Creates the message (json) using specified data

@@ -2,7 +2,7 @@ class User:
     def __init__(self, uname, passwd='', pubk='', privk=''):
         self.username = uname
         self.password = passwd
-        self.public_key, self.private_key = self.key_gen()
+        (self.public_key, self.private_key) = self.key_gen()
         self.contacts = []
 
     def add_contact(self, uname, public_key):

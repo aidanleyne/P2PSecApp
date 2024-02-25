@@ -14,17 +14,15 @@ class crypto:
     Returns: pub - public key (hex), priv - private key (hex)
     """
     def key_gen(self, len=2048, passwd=''):
-        pub = ''
-        priv = ''
-        return pub, priv
-
+        return rsa.newkeys(len)
+    
     """
     Creates ciphertext using RSA protocol
     Requires: msg - plaintext (str), key - (hex)
     Returns: ciphertext (str)
     """
     def encrypt(self, msg, key):
-        return
+        return rsa.encrypt(msg.encode('utf8'), key).hex()
     
     """
     Decrypts and checks message using RSA protocol
@@ -32,10 +30,17 @@ class crypto:
     Returns: msg - plaintext (str)
     """
     def decrypt(self, ctext, key):
-        return
+        return rsa.decrypt(bytes.fromhex(ctext), key).decode('utf8')
     
 
 def main():
+    c = crypto()
+    (pub, priv) = c.key_gen()
+    message = 'Hello World!'
+    ciphertext = c.encrypt(message, pub)
+    print('ciphertext :', ciphertext)
+    plaintext = c.decrypt(ciphertext, priv)
+    print('decrypted plaintext:', plaintext)
     return
 
 if __name__ == "__main__":
