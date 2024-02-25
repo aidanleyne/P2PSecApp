@@ -2,7 +2,7 @@
 A P2P Secure Communication Application for W24 CISC 468.
 
 ## Members:
-1. Aiadan Leyne
+1. Aidan Leyne
 2. Sean Liang
 
 
