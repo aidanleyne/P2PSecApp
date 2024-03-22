@@ -10,22 +10,35 @@ function decryptWithPrivateKey(privateKey, encryptedData) {
     return crypto.privateDecrypt(privateKey, Buffer.from(encryptedData, 'base64')).toString();
 }
 
-// Function to encrypt messages using AES
+// Function to encrypt a message using AES
 function encryptMessage(message, aesKey) {
-    const iv = crypto.randomBytes(16); // AES block size for IV
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(aesKey, 'hex'), iv);
+    console.log(`Encrypting with AES Key Length: ${aesKey.length}`);
+    console.log(`AES Key (initial bytes): ${aesKey.slice(0, 4).toString('hex')}`);
+    
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', aesKey, iv);
     let encrypted = cipher.update(message, 'utf8', 'hex');
     encrypted += cipher.final('hex');
+    
     return { iv: iv.toString('hex'), content: encrypted };
 }
 
-// Function to decrypt messages using AES
+// Function to decrypt a message using AES
 function decryptMessage(encryptedMessage, aesKey) {
+    console.log(`Decrypting with AES Key Length: ${aesKey.length}`);
+    console.log(`AES Key (initial bytes): ${aesKey.slice(0, 4).toString('hex')}`);
+    
     const iv = Buffer.from(encryptedMessage.iv, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(aesKey, 'hex'), iv);
-    let decrypted = decipher.update(encryptedMessage.content, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    try {
+        const decipher = crypto.createDecipheriv('aes-256-cbc', aesKey, iv);
+        let decrypted = decipher.update(encryptedMessage.content, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        
+        return decrypted;
+    } catch (error) {
+        console.error('Decryption error:', error);
+        throw error; 
+    }
 }
 
 module.exports = { encryptWithPublicKey, decryptWithPrivateKey, encryptMessage, decryptMessage };

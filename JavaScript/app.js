@@ -1,26 +1,64 @@
 const readline = require('readline');
-const { generateAndSaveKeys } = require('./keygen'); // Assume this exists and matches the outline from previous steps
-const { publishService, discoverServices } = require('./discovery');
+const { generateAndSaveKeys } = require('./keygen');
+const { publishService, discoverServices, sendMessage } = require('./discovery');
 
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
+function init() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
 
-rl.question('Choose an action (generate-keys, publish, discover): ', action => {
-    switch (action) {
-        case 'generate-keys':
-            generateAndSaveKeys(); 
-            break;
-        case 'publish':
-            publishService();
-            break;
-        case 'discover':
-            discoverServices(); 
-            break;
-        default:
-            console.log('Invalid option');
-            break;
+    function mainMenu() {
+        rl.question('Choose an action (generate-keys, publish, discover, exit): ', action => {
+            switch (action) {
+                case 'generate-keys':
+                    generateAndSaveKeys();
+                    console.log('Keys generated successfully.');
+                    mainMenu(); // Return to main menu after action
+                    break;
+                case 'publish':
+                    publishService();
+                    console.log('Publish service started. You can now receive messages.');
+                    waitForCommand(); // Enter command mode
+                    break;
+                case 'discover':
+                    discoverServices();
+                    console.log('Discovery started. You can now send messages.');
+                    waitForCommand(); // Enter command mode
+                    break;
+                case 'exit':
+                    console.log('Exiting application...');
+                    rl.close();
+                    break;
+                default:
+                    console.log('Invalid option. Please try again.');
+                    mainMenu(); // Return to main menu for valid option
+                    break;
+            }
+        });
     }
-    rl.close();
-});
+
+    function waitForCommand() {
+        rl.question('Enter command (send-message <message> or back): ', command => {
+            if (command.startsWith('send-message')) {
+                const message = command.slice('send-message'.length).trim();
+                if (message) {
+                    sendMessage(message);
+                    console.log('Message sent.');
+                } else {
+                    console.log('No message provided. Please try again.');
+                }
+                waitForCommand(); // Wait for the next command
+            } else if (command === 'back') {
+                mainMenu(); // Return to the main menu
+            } else {
+                console.log('Unknown command. Use "send-message <message>" to send or "back" to return to the main menu.');
+                waitForCommand(); // Repeat for a valid command
+            }
+        });
+    }
+
+    mainMenu(); // Start the app with the main menu
+}
+
+init();

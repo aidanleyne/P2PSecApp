@@ -12,7 +12,6 @@ function generateAndSaveKeys() {
     const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' });
     const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
 
-    // Save keys to files in the same directory as this script
     fs.writeFileSync(path.join(__dirname, 'publicKey.pem'), publicKeyPem);
     fs.writeFileSync(path.join(__dirname, 'privateKey.pem'), privateKeyPem);
 
@@ -43,5 +42,13 @@ function generateAESKey() {
   return crypto.randomBytes(32); // AES-256 key
 }
 
-module.exports = { generateAndSaveKeys, loadPublicKey, loadPrivateKey, generateAESKey };
+function generateDHKeys() {
+    const dh = crypto.createDiffieHellmanGroup('modp14');
+    const publicKey = dh.generateKeys();
+    const privateKey = dh.getPrivateKey();
+
+    return { publicKey, privateKey, dh };
+}
+
+module.exports = { generateAndSaveKeys, loadPublicKey, loadPrivateKey, generateAESKey, generateDHKeys };
 
