@@ -1,4 +1,5 @@
 const bonjour = require('bonjour')();
+const fs = require('fs');
 const net = require('net');
 const crypto = require('crypto');
 const { encryptWithPublicKey, decryptWithPrivateKey, encryptMessage, decryptMessage } = require('./messaging');
@@ -78,14 +79,23 @@ function discoverServices() {
 }
 
 
-function sendMessage(message) {
+// In discovery.js
+function sendMessage(message, isFile = false) {
     if (session.socket && session.aesKey) {
-        console.log('Sending message...');
-        const encryptedMessage = encryptMessage(message, session.aesKey);
-        session.socket.write(JSON.stringify({ action: 'sendMessage', message: JSON.stringify(encryptedMessage) }));
+        console.log(isFile ? 'Sending file...' : 'Sending message...');
+        let encryptedMessage = {};
+        if (isFile) {
+            // Placeholder for file encryption logic
+            const fileContent = fs.readFileSync(message, 'utf8'); // This is a simplification; binary files require different handling
+            encryptedMessage = encryptMessage(fileContent, session.aesKey);
+        } else {
+            encryptedMessage = encryptMessage(message, session.aesKey);
+        }
+        session.socket.write(JSON.stringify({ action: 'sendMessage', message: JSON.stringify(encryptedMessage), isFile }));
     } else {
         console.log('No active session for sending messages.');
     }
 }
+
 
 module.exports = { publishService, discoverServices, sendMessage };

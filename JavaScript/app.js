@@ -1,4 +1,5 @@
 const readline = require('readline');
+const fs = require('fs'); // Add this to read files
 const { generateAndSaveKeys } = require('./keygen');
 const { publishService, discoverServices, sendMessage } = require('./discovery');
 
@@ -39,20 +40,29 @@ function init() {
     }
 
     function waitForCommand() {
-        rl.question('Enter command (send-message <message> or back): ', command => {
+        rl.question('Enter command (send-message <message>, send-file <file-path>, or back): ', command => {
             if (command.startsWith('send-message')) {
                 const message = command.slice('send-message'.length).trim();
                 if (message) {
-                    sendMessage(message);
+                    sendMessage(message); // Sends the encrypted message
                     console.log('Message sent.');
                 } else {
-                    console.log('No message provided. Please try again.');
+                    console.log('No message provided.');
+                }
+                waitForCommand(); // Wait for the next command
+            } else if (command.startsWith('send-file')) {
+                const filePath = command.slice('send-file'.length).trim();
+                if (fs.existsSync(filePath)) {
+                    sendMessage(filePath, true); // Indicates this is a file
+                    console.log('File sent.');
+                } else {
+                    console.log('File does not exist. Please check the path and try again.');
                 }
                 waitForCommand(); // Wait for the next command
             } else if (command === 'back') {
                 mainMenu(); // Return to the main menu
             } else {
-                console.log('Unknown command. Use "send-message <message>" to send or "back" to return to the main menu.');
+                console.log('Unknown command. Use "send-message <message>", "send-file <file-path>" to send or "back" to return to the main menu.');
                 waitForCommand(); // Repeat for a valid command
             }
         });
