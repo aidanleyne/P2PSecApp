@@ -50,5 +50,16 @@ function generateDHKeys() {
     return { publicKey, privateKey, dh };
 }
 
-module.exports = { generateAndSaveKeys, loadPublicKey, loadPrivateKey, generateAESKey, generateDHKeys };
+function getPublicKeyFingerprint() {
+    try {
+        const publicKey = loadPublicKey();
+        const hash = crypto.createHash('sha256').update(publicKey).digest('hex');
+        return hash; // Returns the fingerprint
+    } catch (error) {
+        console.error('Error generating public key fingerprint:', error);
+        return null;
+    }
+}
+
+module.exports = { generateAndSaveKeys, loadPublicKey, loadPrivateKey, generateAESKey, generateDHKeys, getPublicKeyFingerprint};
 
