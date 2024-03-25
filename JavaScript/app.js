@@ -1,7 +1,12 @@
 const readline = require('readline');
-const fs = require('fs'); // Add this to read files
+const fs = require('fs');
+const path = require('path');
 const { generateAndSaveKeys } = require('./keygen');
 const { publishService, discoverServices, sendMessage, notifyKeyUpdate } = require('./discovery');
+const { generateAndSaveKey } = require('./secureStorage');
+
+// Ensure the encryption key is generated on application start
+generateAndSaveKey();
 
 function init() {
     const rl = readline.createInterface({
@@ -13,25 +18,41 @@ function init() {
         rl.question('Choose an action (generate-keys, publish, discover, regenerate-keys, exit): ', action => {
             switch (action) {
                 case 'generate-keys':
-                    generateAndSaveKeys();
-                    console.log('Keys generated successfully.');
+                    try {
+                        generateAndSaveKeys();
+                        console.log('Keys generated successfully.');
+                    } catch (error) {
+                        console.error('Failed to generate keys:', error);
+                    }
                     mainMenu(); // Return to main menu after action
                     break;
                 case 'publish':
-                    publishService();
-                    console.log('Publish service started. You can now receive messages.');
+                    try {
+                        publishService();
+                        console.log('Publish service started. You can now receive messages.');
+                    } catch (error) {
+                        console.error('Failed to publish service:', error);
+                    }
                     waitForCommand(); // Enter command mode
                     break;
                 case 'discover':
-                    discoverServices();
-                    console.log('Discovery started. You can now send messages.');
+                    try {
+                        discoverServices();
+                        console.log('Discovery started. You can now send messages.');
+                    } catch (error) {
+                        console.error('Failed to discover services:', error);
+                    }
                     waitForCommand(); // Enter command mode
                     break;
                 case 'regenerate-keys':
-                    notifyKeyUpdate(); 
-                    console.log('Key regeneration initiated.');
+                    try {
+                        notifyKeyUpdate();
+                        console.log('Key regeneration initiated.');
+                    } catch (error) {
+                        console.error('Failed to regenerate keys:', error);
+                    }
                     mainMenu(); // Return to the main menu after action
-                    break;                
+                    break;
                 case 'exit':
                     console.log('Exiting application...');
                     rl.close();
@@ -48,26 +69,22 @@ function init() {
         rl.question('Enter command (send-message <message>, send-file <file-path>, or back): ', command => {
             if (command.startsWith('send-message')) {
                 const message = command.slice('send-message'.length).trim();
-                if (message) {
-                    sendMessage(message); // Sends the encrypted message
-                    console.log('Message sent.');
-                } else {
-                    console.log('No message provided.');
-                }
+                sendMessage(message);
+                console.log('Message sent.');
                 waitForCommand(); // Wait for the next command
             } else if (command.startsWith('send-file')) {
                 const filePath = command.slice('send-file'.length).trim();
-                if (fs.existsSync(filePath)) {
-                    sendMessage(filePath, true); // Indicates this is a file
+                if (filePath && fs.existsSync(filePath)) {
+                    sendMessage(filePath, true);
                     console.log('File sent.');
                 } else {
-                    console.log('File does not exist. Please check the path and try again.');
+                    console.log('File does not exist or path is incorrect. Please check and try again.');
                 }
                 waitForCommand(); // Wait for the next command
             } else if (command === 'back') {
                 mainMenu(); // Return to the main menu
             } else {
-                console.log('Unknown command. Use "send-message <message>", "send-file <file-path>" to send or "back" to return to the main menu.');
+                console.log('Unknown command. Please use "send-message <message>", "send-file <file-path>", or "back".');
                 waitForCommand(); // Repeat for a valid command
             }
         });

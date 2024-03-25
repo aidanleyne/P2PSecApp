@@ -2,71 +2,53 @@ const bonjour = require('bonjour')();
 const fs = require('fs');
 const net = require('net');
 const crypto = require('crypto');
-const { encryptWithPublicKey, decryptWithPrivateKey, encryptMessage, decryptMessage } = require('./messaging');
-const { loadPublicKey, loadPrivateKey, generateDHKeys, getPublicKeyFingerprint, regenerateAndSaveKeys } = require('./keygen');
+const path = require('path');
+const {encryptMessage, decryptMessage } = require('./messaging');
+const { loadPublicKey, generateDHKeys, getPublicKeyFingerprint, regenerateAndSaveKeys } = require('./keygen');
+const { encryptData } = require('./secureStorage');
 
-let session = {
-    dh: null,
-    aesKey: null,
-    socket: null,
-    publicKeyFingerprint: null,
-};
-
+let session = { dh: null, aesKey: null, socket: null, publicKeyFingerprint: null };
 let connectedClients = [];
 
 function publishService() {
     const server = net.createServer(socket => {
-        connectedClients.push(socket); // Add each connected client to the list
+        connectedClients.push(socket);
         socket.on('data', data => {
-            const message = JSON.parse(data.toString());
-            switch (message.action) {
-                case 'keyExchange':
-                    handleKeyExchange(message, socket);
-                    break;
-                case 'sendMessage':
-                    handleMessageReception(message);
-                    break;
-            }
-        });
-        socket.on('close', () => {
-            connectedClients = connectedClients.filter(client => client !== socket); // Remove disconnected client
-        });
-    });
+            let message;
+            try { message = JSON.parse(data.toString()); }
+            catch (error) { console.error('Failed to parse incoming message:', error); return; }
 
+            if (message.action === 'keyExchange') handleKeyExchange(message, socket);
+            else if (message.action === 'sendMessage') handleMessageReception(message);
+        });
+        socket.on('close', () => { connectedClients = connectedClients.filter(client => client !== socket); });
+    });
     server.listen(3000, () => console.log('Service published and awaiting connections...'));
     bonjour.publish({ name: 'SecureMsgService', type: 'http', port: 3000 });
 }
 
 function handleKeyExchange(message, socket) {
-    console.log('Received key exchange request...');
-    const { publicKey, dh } = generateDHKeys();
-    session.dh = dh;
-    const fingerprint = getPublicKeyFingerprint(); 
-    console.log(`Sending DH Public Key: ${publicKey.toString('hex')}`);
-    console.log(`Sending Fingerprint: ${fingerprint}`);
-    const receivedPublicKey = Buffer.from(message.dhPublicKey, 'hex');
-    session.aesKey = crypto.createHash('sha256').update(session.dh.computeSecret(receivedPublicKey)).digest();
-
-    socket.write(JSON.stringify({
-        action: 'keyExchangeResponse',
-        dhPublicKey: publicKey.toString('hex'),
-        fingerprint: fingerprint,
-    }));
+    try {
+        const { publicKey, dh } = generateDHKeys();
+        session.dh = dh;
+        const fingerprint = getPublicKeyFingerprint();
+        console.log(`DH Public Key: ${publicKey.toString('hex')}, Fingerprint: ${fingerprint}`);
+        const receivedPublicKey = Buffer.from(message.dhPublicKey, 'hex');
+        session.aesKey = crypto.createHash('sha256').update(dh.computeSecret(receivedPublicKey)).digest();
+        socket.write(JSON.stringify({ action: 'keyExchangeResponse', dhPublicKey: publicKey.toString('hex'), fingerprint }));
+    } catch (error) { console.error('Failed in key exchange process:', error); }
 }
 
 function handleMessageReception(message) {
-    if (!session.aesKey) {
-        console.error('AES key is not set. Unable to decrypt message.');
-        return;
-    }
-    console.log('Received secure message...');
+    if (!session.aesKey) { console.error('AES key is not set. Unable to decrypt message.'); return; }
     try {
         const encryptedData = JSON.parse(message.message);
         const decryptedMessage = decryptMessage(encryptedData, session.aesKey);
+        // Secure storage
+        const storagePath = path.join(__dirname, 'messages.json');
+        fs.appendFileSync(storagePath, JSON.stringify(encryptData(decryptedMessage)) + '\n');
         console.log('Decrypted Message:', decryptedMessage);
-    } catch (error) {
-        console.error('Error handling incoming message:', error);
-    }
+    } catch (error) { console.error('Error during message reception:', error); }
 }
 
 function discoverServices() {
@@ -113,8 +95,6 @@ function connectToService(service) {
 function sendMessage(message, isFile = false) {
     if (session.socket && session.aesKey) {
         console.log(isFile ? 'Sending file...' : 'Sending message...');
-
-        // Attach a timestamp to the message
         const messageWithTimestamp = {
             content: isFile ? fs.readFileSync(message, 'utf8') : message,
             timestamp: new Date().getTime() // Current time in milliseconds
@@ -129,9 +109,9 @@ function sendMessage(message, isFile = false) {
 }
 
 function notifyKeyUpdate() {
-    regenerateAndSaveKeys(); // Regenerate keys 
-    const newPublicKey = loadPublicKey(); // Load the new public key
-    broadcastNewPublicKey(newPublicKey); // Broadcast new public key
+    regenerateAndSaveKeys(); 
+    const newPublicKey = loadPublicKey(); 
+    broadcastNewPublicKey(newPublicKey); 
 
     if (session.socket) {
         console.log('Notifying peers of new public key...');
@@ -144,17 +124,14 @@ function notifyKeyUpdate() {
     }
 }
 
-// Function to broadcast the new public key to all connected clients
 function broadcastNewPublicKey(newPublicKey) {
     const message = JSON.stringify({
         action: 'keyUpdate',
         newPublicKey: newPublicKey
     });
-
     connectedClients.forEach(client => {
         client.write(message);
     });
-
     console.log('Broadcasted new public key to all connected clients.');
 }
 
