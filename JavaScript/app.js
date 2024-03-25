@@ -1,7 +1,7 @@
 const readline = require('readline');
 const fs = require('fs'); // Add this to read files
 const { generateAndSaveKeys } = require('./keygen');
-const { publishService, discoverServices, sendMessage } = require('./discovery');
+const { publishService, discoverServices, sendMessage, notifyKeyUpdate } = require('./discovery');
 
 function init() {
     const rl = readline.createInterface({
@@ -10,7 +10,7 @@ function init() {
     });
 
     function mainMenu() {
-        rl.question('Choose an action (generate-keys, publish, discover, exit): ', action => {
+        rl.question('Choose an action (generate-keys, publish, discover, regenerate-keys, exit): ', action => {
             switch (action) {
                 case 'generate-keys':
                     generateAndSaveKeys();
@@ -27,6 +27,11 @@ function init() {
                     console.log('Discovery started. You can now send messages.');
                     waitForCommand(); // Enter command mode
                     break;
+                case 'regenerate-keys':
+                    notifyKeyUpdate(); 
+                    console.log('Key regeneration initiated.');
+                    mainMenu(); // Return to the main menu after action
+                    break;                
                 case 'exit':
                     console.log('Exiting application...');
                     rl.close();

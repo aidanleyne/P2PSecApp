@@ -3,7 +3,7 @@ const fs = require('fs');
 const net = require('net');
 const crypto = require('crypto');
 const { encryptWithPublicKey, decryptWithPrivateKey, encryptMessage, decryptMessage } = require('./messaging');
-const { loadPublicKey, loadPrivateKey, generateDHKeys, getPublicKeyFingerprint } = require('./keygen');
+const { loadPublicKey, loadPrivateKey, generateDHKeys, getPublicKeyFingerprint, regenerateAndSaveKeys } = require('./keygen');
 
 let session = {
     dh: null,
@@ -12,8 +12,11 @@ let session = {
     publicKeyFingerprint: null,
 };
 
+let connectedClients = [];
+
 function publishService() {
     const server = net.createServer(socket => {
+        connectedClients.push(socket); // Add each connected client to the list
         socket.on('data', data => {
             const message = JSON.parse(data.toString());
             switch (message.action) {
@@ -24,6 +27,9 @@ function publishService() {
                     handleMessageReception(message);
                     break;
             }
+        });
+        socket.on('close', () => {
+            connectedClients = connectedClients.filter(client => client !== socket); // Remove disconnected client
         });
     });
 
@@ -122,4 +128,34 @@ function sendMessage(message, isFile = false) {
     }
 }
 
-module.exports = { publishService, discoverServices, sendMessage };
+function notifyKeyUpdate() {
+    regenerateAndSaveKeys(); // Regenerate keys 
+    const newPublicKey = loadPublicKey(); // Load the new public key
+    broadcastNewPublicKey(newPublicKey); // Broadcast new public key
+
+    if (session.socket) {
+        console.log('Notifying peers of new public key...');
+        session.socket.write(JSON.stringify({
+            action: 'keyUpdate',
+            newPublicKey: newPublicKey
+        }));
+    } else {
+        console.log('No active session. Unable to notify peers.');
+    }
+}
+
+// Function to broadcast the new public key to all connected clients
+function broadcastNewPublicKey(newPublicKey) {
+    const message = JSON.stringify({
+        action: 'keyUpdate',
+        newPublicKey: newPublicKey
+    });
+
+    connectedClients.forEach(client => {
+        client.write(message);
+    });
+
+    console.log('Broadcasted new public key to all connected clients.');
+}
+
+module.exports = { publishService, discoverServices, sendMessage, notifyKeyUpdate };

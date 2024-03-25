@@ -61,5 +61,15 @@ function getPublicKeyFingerprint() {
     }
 }
 
-module.exports = { generateAndSaveKeys, loadPublicKey, loadPrivateKey, generateAESKey, generateDHKeys, getPublicKeyFingerprint};
+// Function to regenerate and save new keys
+function regenerateAndSaveKeys() {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' });
+    const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+    fs.writeFileSync(path.join(__dirname, 'publicKey.pem'), publicKeyPem);
+    fs.writeFileSync(path.join(__dirname, 'privateKey.pem'), privateKeyPem);
+    console.log('New RSA key pair generated and saved.');
+}
+
+module.exports = { generateAndSaveKeys, loadPublicKey, loadPrivateKey, generateAESKey, generateDHKeys, getPublicKeyFingerprint, regenerateAndSaveKeys};
 
