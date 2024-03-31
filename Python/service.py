@@ -1,8 +1,8 @@
 from zeroconf import Zeroconf
 
 class ServiceListener:
-    def __init__(self):
-        self.zeroconf = Zeroconf()
+    
+    zeroconf = Zeroconf()
 
     def add_service(self, zeroconf, type_, name):
         info = zeroconf.get_service_info(type_, name)
@@ -14,6 +14,6 @@ class ServiceListener:
                 print(f'Discovered non-messaging service: {info.name}')
 
     def connect_to_service(self, service_info):
-        # Implement connection logic
+        # @TODO : Implement connection logic
         # Create a socket connection to service_info.address and service_info.port
         print(f"Connecting to service {service_info.name} at {service_info.parsed_addresses()[0]}:{service_info.port}")

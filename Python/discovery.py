@@ -11,13 +11,14 @@ from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-from keygen import load_public_key, get_public_key_fingerprint, generate_dh_keys, regenerate_and_save_keys
+from keygen import keygen
 from messaging import encrypt_message
-from storage import SecureStorage
+from storage import encrypt_data
 from service import ServiceListener
 
 class discovery:
     def __init__(self):
+        self.kg = keygen()
         self.dh = None
         self.aes_key = None
         self.socket = None
@@ -41,10 +42,10 @@ class discovery:
         print('Service published and awaiting connections...')
         try:
             while True:
-                socket, client_address = server_socket.accept()
+                client_socket, client_address = server_socket.accept()
                 print(f'Accepted connection from {client_address}')
-                self.clients.append(socket)
-                client_thread = threading.Thread(target=self._handle_client_connection, args=(socket, client_address))
+                self.clients.append(client_socket)
+                client_thread = threading.Thread(target=self._handle_client_connection, args=(client_socket, client_address))  # Updated variable here
                 client_thread.daemon = True
                 client_thread.start()
         finally:
@@ -79,7 +80,7 @@ class discovery:
 
             self.dh = server_private_key
 
-            fingerprint = get_public_key_fingerprint(server_public_key)
+            fingerprint = self.kg.get_public_key_fingerprint(server_public_key)
             print(f'DH Public Key: {server_public_key.public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo).hex()}, Fingerprint: {fingerprint}')
 
             # Decode the received public key from the message
@@ -125,7 +126,7 @@ class discovery:
             # Secure storage
             storage_path = os.path.join(os.path.dirname(__file__), 'messages.json')
             with open(storage_path, 'a') as file:
-                encrypted_storage_data = SecureStorage.encrypt_data(decrypted_message)
+                encrypted_storage_data = encrypt_data(decrypted_message)
                 file.write(json.dumps(encrypted_storage_data) + '\n')
             print('Decrypted Message:', decrypted_message)
         except Exception as error:
@@ -155,9 +156,9 @@ class discovery:
         self.socket = client_socket
 
         # Generating Diffie-Hellman keys and getting the public key fingerprint
-        dh_keys = generate_dh_keys()
+        dh_keys = self.kg.generate_dh_keysgenerate_dh_keys()
         self.dh = dh_keys['private_key']
-        fingerprint = get_public_key_fingerprint(dh_keys['public_key'])
+        fingerprint = self.kg.get_public_key_fingerprint(dh_keys['public_key'])
 
         # Preparing the key exchange message
         dh_public_key_pem = dh_keys['public_key'].public_bytes(
@@ -218,10 +219,10 @@ class discovery:
 
     def notify_key_update(self):
         # Regenerate and save the new keys
-        regenerate_and_save_keys()
+        self.kg.regenerate_and_save_keys()
         
         # Load the new public key
-        new_public_key_pem = load_public_key().public_bytes(
+        new_public_key_pem = self.kg.load_public_key().public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         ).decode('utf-8')
@@ -261,7 +262,9 @@ class discovery:
                 print(f'Error broadcasting new public key to a client: {e}')
 
 def main():
-    pass
+    dsc = discovery()
+    dsc.publish()
+
 
 if __name__ == "__main__":
     main()

@@ -83,7 +83,7 @@ class keygen:
 
     def regenerate_and_save_keys(self):
         try:
-            generate_and_save_keys()
+            self.generate_and_save_keys()
             print('Keys have been regenerated and saved.')
         except Exception as error:
             print(f'Failed to regenerate keys: {error}')
