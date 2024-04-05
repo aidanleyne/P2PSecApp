@@ -56,6 +56,7 @@ function init() {
                 case 'exit':
                     console.log('Exiting application...');
                     rl.close();
+                    process.exit(0); 
                     break;
                 default:
                     console.log('Invalid option. Please try again.');
