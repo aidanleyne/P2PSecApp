@@ -49,7 +49,7 @@ def decrypt_with_private_key(private_key_pem, encrypted_data):
 def encrypt_message(message, aes_key):
     try:
         iv = os.urandom(16)
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
         encryptor = cipher.encryptor()
         encrypted = encryptor.update(message.encode('utf-8')) + encryptor.finalize()
         return {'iv': iv.hex(), 'content': encrypted.hex()}
@@ -60,7 +60,7 @@ def encrypt_message(message, aes_key):
 def decrypt_message(encrypted_message, aes_key):
     try:
         iv = bytes.fromhex(encrypted_message['iv'])
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
         decryptor = cipher.decryptor()
         decrypted = decryptor.update(bytes.fromhex(encrypted_message['content'])) + decryptor.finalize()
         decrypted_message = json.loads(decrypted.decode('utf-8'))

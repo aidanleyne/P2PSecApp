@@ -1,3 +1,4 @@
+import binascii
 import os
 import socket
 import select
@@ -18,13 +19,11 @@ import threading
 
 class discovery:
     def __init__(self):
-        self.dh = None
         self.aes_key = None
         self.socket = None
         self.pub_fp = None
         self.clients = []
         self.lock = threading.Lock()
-        self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
 
     def publish(self):
         with Zeroconf() as zeroconf:
@@ -83,7 +82,7 @@ class discovery:
 
     def key_exchange(self, message, client_socket):
         try:
-            # Assuming `self.dh_parameters` is predefined and shared across server and client
+            #generate keys
             keys = kg.generate_dh_keys()
             server_private_key, server_public_key = keys['private_key'], keys['public_key']
 
@@ -93,8 +92,7 @@ class discovery:
 
             # Decode the client's public key
             print("From Message :", message['dhPublicKey'])
-            client_public_key_bytes = bytes.fromhex(message['dhPublicKey'])
-            client_public_key = load_pem_public_key(client_public_key_bytes, backend=default_backend())
+            client_public_key = load_pem_public_key(binascii.unhexlify(message['dhPublicKey']))
 
             print("Exchanging keys...")
             # Compute the shared secret
@@ -106,9 +104,7 @@ class discovery:
             self.aes_key = HKDF(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=None,
-                info=b'handshake data',
-                backend=default_backend()
+                salt=None
             ).derive(shared_secret)
 
             print("preparing response...")
@@ -146,7 +142,7 @@ class discovery:
     def _decrypt_(self, encrypted_data, aes_key):
         iv = bytes.fromhex(encrypted_data['iv'])
         ciphertext = bytes.fromhex(encrypted_data['content'])
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
         decryptor = cipher.decryptor()
         return decryptor.update(ciphertext) + decryptor.finalize()
 
@@ -166,7 +162,6 @@ class discovery:
         # Generating Diffie-Hellman keys and getting the public key fingerprint
         print("Generating keys for exchange...")
         dh_keys = kg.generate_dh_keys()
-        self.dh = dh_keys['private_key']
         fingerprint = kg.get_public_key_fingerprint(dh_keys['public_key'])
 
         # Preparing the key exchange message
@@ -193,9 +188,9 @@ class discovery:
             print(f"Received Fingerprint: {response['fingerprint']}")
             # Complete the exchnage process. Derive the AES key using the received DH public key
             peer_public_key_pem = bytes.fromhex(response['dhPublicKey'])
-            peer_public_key = kg.load_public_key(peer_public_key_pem, backend=default_backend())
+            peer_public_key = kg.load_public_key(peer_public_key_pem)
 
-            shared_secret = self.dh.exchange(peer_public_key)
+            shared_secret = dh_keys['private_key'].exchange(peer_public_key)
 
             # Derive the AES key from the shared secret
             aes_key = HKDF(

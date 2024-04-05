@@ -36,7 +36,7 @@ def generate_and_save_keys():
 def load_public_key():
     try:
         with open(os.path.join(os.path.dirname(__file__), 'publicKey.pem'), 'rb') as f:
-            return load_pem_public_key(f.read(), backend=default_backend())
+            return load_pem_public_key(f.read())
     except Exception as error:
         print(f'Failed to load public key: {error}')
         return None
@@ -44,7 +44,7 @@ def load_public_key():
 def load_private_key():
     try:
         with open(os.path.join(os.path.dirname(__file__), 'privateKey.pem'), 'rb') as f:
-            return load_pem_private_key(f.read(), None, backend=default_backend())
+            return load_pem_private_key(f.read(), None)
     except Exception as error:
         print(f'Failed to load private key: {error}')
         return None
@@ -54,7 +54,7 @@ def generate_aes_key():
 
 def generate_dh_keys():
     try:
-        parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+        parameters = dh.generate_parameters(generator=2, key_size=2048)
         private_key = parameters.generate_private_key()
         public_key = private_key.public_key()
         return {'public_key': public_key, 'private_key': private_key}
@@ -69,7 +69,7 @@ def get_public_key_fingerprint(public_key):
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
-        digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
+        digest = hashes.Hash(hashes.SHA256())
         digest.update(pem)
         return digest.finalize().hex()
     except Exception as error:

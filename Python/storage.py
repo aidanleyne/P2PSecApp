@@ -27,7 +27,7 @@ def encrypt_data(data):
     try:
         key = load_key()
         iv = os.urandom(16)
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
         encryptor = cipher.encryptor()
         encrypted = encryptor.update(data.encode('utf-8')) + encryptor.finalize()
         return {'iv': iv.hex(), 'encrypted': encrypted.hex()}
@@ -39,7 +39,7 @@ def decrypt_data(encrypted_object):
     try:
         key = load_key()
         iv = bytes.fromhex(encrypted_object['iv'])
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
         decryptor = cipher.decryptor()
         decrypted = decryptor.update(bytes.fromhex(encrypted_object['encrypted'])) + decryptor.finalize()
         return decrypted.decode('utf-8')
