@@ -98,6 +98,7 @@ class discovery:
 
             print("Exchanging keys...")
             # Compute the shared secret
+            # THIS IS WHERE THE CODE IS CURRENTLY FAILING
             shared_secret = server_private_key.exchange(client_public_key)
 
             print("Deriving AES Key...")
