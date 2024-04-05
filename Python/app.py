@@ -1,9 +1,8 @@
 import os
-from keygen import keygen
+import keygen as kg
 from discovery import discovery
 
 def init():
-    kg  = keygen()
     dsc = discovery()
 
     def main_menu():
@@ -18,18 +17,17 @@ def init():
 
         elif action == 'publish':
             try:
-                dsc.publish()
-                print('Publish service started. You can now receive messages.')
-                wait_for_command()
+                if dsc.publish():
+                    wait_for_command()
+                else:
+                    main_menu()
             except Exception as error:
                 print(f'Failed to publish service: {error}')
                 main_menu()
             
-            
         elif action == 'discover':
             try:
                 dsc.discover()
-                print('Discovery started. You can now send messages.')
             except Exception as error:
                 print(f'Failed to discover services: {error}')
             wait_for_command()
@@ -55,7 +53,6 @@ def init():
         if command.startswith('send-message'):
             message = command[len('send-message'):].strip()
             dsc.send_message(message)
-            print('Message sent.')
             wait_for_command()
 
         elif command.startswith('send-file'):

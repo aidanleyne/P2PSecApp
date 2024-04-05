@@ -1,19 +1,20 @@
+import socket
 from zeroconf import Zeroconf
 
 class ServiceListener:
-    
-    zeroconf = Zeroconf()
+    def __init__(self, discovery_instance):
+        self.conf = Zeroconf()
+        self.discovery = discovery_instance
 
     def add_service(self, zeroconf, type_, name):
         info = zeroconf.get_service_info(type_, name)
         if info:
             if 'SecureMsgService' in name:
                 print(f'Found messaging service: {info.name}')
-                self.connect_to_service(info)
+                self.discovery.connect({'host': info.parsed_addresses()[0], 'port': info.port})
+                return
             else:
                 print(f'Discovered non-messaging service: {info.name}')
 
-    def connect_to_service(self, service_info):
-        # @TODO : Implement connection logic
-        # Create a socket connection to service_info.address and service_info.port
-        print(f"Connecting to service {service_info.name} at {service_info.parsed_addresses()[0]}:{service_info.port}")
+    def update_service(self, zeroconf, type_, name, state_change):
+        pass
