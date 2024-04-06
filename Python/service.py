@@ -1,4 +1,3 @@
-import socket
 from zeroconf import Zeroconf
 
 class ServiceListener:

@@ -1,16 +1,14 @@
-import binascii
 import os
 import socket
 import select
 import time
 import json
+import base64
 from zeroconf import Zeroconf, ServiceInfo, ServiceBrowser
 from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, PublicFormat, Encoding
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
 import keygen as kg
 import messaging
 from storage import encrypt_data
@@ -92,7 +90,9 @@ class discovery:
 
             # Decode the client's public key
             print("From Message :", message['dhPublicKey'])
-            client_public_key = load_pem_public_key(binascii.unhexlify(message['dhPublicKey']))
+            peer_public_key_pem_received = base64.b64decode(message['dhPublicKey'])
+            peer_public_key_received = serialization.load_pem_public_key(peer_public_key_pem_received)
+            client_public_key = load_pem_public_key(message['dhPublicKey'])
 
             print("Exchanging keys...")
             # Compute the shared secret
@@ -115,7 +115,7 @@ class discovery:
                 'fingerprint': fingerprint
             }
 
-            print("sending response...")
+            print("Sending response...")
             client_socket.sendall(json.dumps(response).encode())
             return True
 
@@ -171,14 +171,14 @@ class discovery:
         )
         key_exchange_message = {
             'action': 'keyExchange',
-            'dhPublicKey': dh_public_key_pem.hex(),
+            'dhPublicKey': base64.b64encode(dh_public_key_pem).decode('utf-8'),
             'fingerprint': fingerprint
         }
 
         print("Keys generated. Ready to send.")
         # Sending the key exchange message
         client_socket.sendall((json.dumps(key_exchange_message) + '\n').encode('utf-8'))
-        print("Keys have been sent :", key_exchange_message)
+        print("Keys have been sent :", base64.b64encode(dh_public_key_pem).decode('utf-8'))
 
         # Listen for a response to complete the key exchange process
         response_data = client_socket.recv(4096)
@@ -196,9 +196,7 @@ class discovery:
             aes_key = HKDF(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=None,
-                info=b'handshake data',
-                backend=default_backend()
+                salt=None
             ).derive(shared_secret)
 
             # Save the AES key

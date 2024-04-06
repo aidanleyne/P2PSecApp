@@ -1,7 +1,6 @@
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
 import os
 import json
 import base64
@@ -9,10 +8,7 @@ from datetime import datetime, timedelta
 
 def encrypt_with_public_key(public_key_pem, data):
     try:
-        public_key = serialization.load_pem_public_key(
-            public_key_pem.encode(),
-            backend=default_backend()
-        )
+        public_key = serialization.load_pem_public_key(public_key_pem.encode())
         encrypted = public_key.encrypt(
             data.encode(),
             padding.OAEP(
@@ -28,11 +24,7 @@ def encrypt_with_public_key(public_key_pem, data):
 
 def decrypt_with_private_key(private_key_pem, encrypted_data):
     try:
-        private_key = serialization.load_pem_private_key(
-            private_key_pem.encode(),
-            password=None,
-            backend=default_backend()
-        )
+        private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
         decrypted = private_key.decrypt(
             base64.b64decode(encrypted_data),
             padding.OAEP(
