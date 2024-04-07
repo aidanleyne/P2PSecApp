@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, dh
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_pem_private_key
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 import os
 
 def generate_and_save_keys():
@@ -49,7 +50,7 @@ def generate_aes_key():
 
 def generate_dh_keys():
     try:
-        parameters = dh.generate_parameters(generator=2, key_size=2048)
+        parameters = dh.generate_parameters(generator=2, key_size=1024, backend=default_backend())
         private_key = parameters.generate_private_key()
         public_key = private_key.public_key()
         return {'public_key': public_key, 'private_key': private_key}

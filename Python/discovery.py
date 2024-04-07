@@ -4,11 +4,13 @@ import select
 import time
 import json
 import base64
+import traceback
 from zeroconf import Zeroconf, ServiceInfo, ServiceBrowser
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, PublicFormat, Encoding
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 import keygen as kg
 import messaging
 from storage import encrypt_data
@@ -65,7 +67,7 @@ class discovery:
                 while '\n' in data_buffer:
                     message, data_buffer = data_buffer.split('\n', 1)
                     try:
-                        message_json = json.loads(message)
+                        message_json = json.loads(message.rstrip('\n'))
                         if message_json['action'] == 'keyExchange':
                             if self.key_exchange(message_json, socket):
                                 print("Key exchange complete.")
@@ -84,20 +86,24 @@ class discovery:
             keys = kg.generate_dh_keys()
             server_private_key, server_public_key = keys['private_key'], keys['public_key']
 
-            # Use the keygen instance correctly with 'self'
-            fingerprint = kg.get_public_key_fingerprint(server_public_key)
-            print("Fingerprint:", fingerprint)
+            # Check the received json
+            print("Message recieved :", message)
 
             # Decode the client's public key
-            print("From Message :", message['dhPublicKey'])
-            peer_public_key_pem_received = base64.b64decode(message['dhPublicKey'])
-            peer_public_key_received = serialization.load_pem_public_key(peer_public_key_pem_received)
-            client_public_key = load_pem_public_key(message['dhPublicKey'])
+            peer_public_key = serialization.load_pem_public_key(
+                base64.b64decode(message['dhPublicKey']), 
+                backend=default_backend()
+                )
 
             print("Exchanging keys...")
             # Compute the shared secret
             # THIS IS WHERE THE CODE IS CURRENTLY FAILING
-            shared_secret = server_private_key.exchange(client_public_key)
+            try:
+                shared_secret = server_private_key.exchange(peer_public_key)
+            except Exception as e:
+                print(f"Failed in key exchange process with error: {e}")
+                traceback.print_exc()
+                return False
 
             print("Deriving AES Key...")
             # Derive AES key from the shared secret
@@ -105,18 +111,18 @@ class discovery:
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=None
-            ).derive(shared_secret)
+                ).derive(shared_secret)
 
             print("preparing response...")
             # Prepare and send the response
             response = {
                 'action': 'keyExchangeResponse',
                 'dhPublicKey': server_public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).hex(),
-                'fingerprint': fingerprint
-            }
+                'fingerprint': kg.get_public_key_fingerprint(server_public_key)
+                }
 
             print("Sending response...")
-            client_socket.sendall(json.dumps(response).encode())
+            client_socket.sendall(json.dumps(response).encode('utf-8'))
             return True
 
         except Exception as error:
@@ -178,7 +184,7 @@ class discovery:
         print("Keys generated. Ready to send.")
         # Sending the key exchange message
         client_socket.sendall((json.dumps(key_exchange_message) + '\n').encode('utf-8'))
-        print("Keys have been sent :", base64.b64encode(dh_public_key_pem).decode('utf-8'))
+        print("Message sent :", json.dumps(key_exchange_message))
 
         # Listen for a response to complete the key exchange process
         response_data = client_socket.recv(4096)
