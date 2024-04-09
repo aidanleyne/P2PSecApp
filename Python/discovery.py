@@ -84,51 +84,44 @@ class discovery:
 
     def key_exchange(self, message, client_socket):
         try:
-            #generate server keys
+            # Generate server DH keys based on predefined parameters
             parameters = kg.get_dh_parameters()
-            keys = kg.generate_dh_keys(parameters=parameters)
-            server_private_key, server_public_key = keys['private_key'], keys['public_key']
-            
-            #Generate key based on passed numbers
-            peer_public_numbers = dh.DHPublicNumbers(int(message['dhPublicKey'], 16), parameters.parameter_numbers())
-            peer_public_key = peer_public_numbers.public_key(default_backend())
+            server_private_key = parameters.generate_private_key()
+            server_public_key = server_private_key.public_key()
 
-            print("Received Fingerprint:", message['fingerprint'])
+            # Convert client's public key from received message
+            client_public_numbers = dh.DHPublicNumbers(int(message['dhPublicKey'], 16), parameters.parameter_numbers())
+            client_public_key = client_public_numbers.public_key(default_backend())
 
-            print("Exchanging keys...")
-            # Compute the shared secret
-            try:
-                shared_secret = server_private_key.exchange(peer_public_key)
-            except Exception as e:
-                print(f"Failed in key exchange process with error: {e}")
-                traceback.print_exc()
-                return False
+            # Derive shared secret
+            shared_secret = server_private_key.exchange(client_public_key)
 
-            print("Deriving AES Key...")
+            # Logging for debug
+            print(f"Shared secret: {shared_secret.hex()}")
+
             # Derive AES key from the shared secret
             self.aes_key = HKDF(
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=None,
-                info=b'handshake data'
-                ).derive(shared_secret)
-            
-            print(self.aes_key)
-            
-            # Prepare and send the response
+                info=b'handshake data',
+                backend=default_backend()
+            ).derive(shared_secret)
+
+            # Send DH public key and fingerprint back to client
             response = {
                 'action': 'keyExchangeResponse',
-                'dhPublicKey': hex(server_public_key.public_numbers().y)[2:],
+                'dhPublicKey': format(server_public_key.public_numbers().y, 'x'),
                 'fingerprint': kg.get_public_key_fingerprint(server_public_key)
-                }
+            }
+            client_socket.send(json.dumps(response).encode())
 
-            print("Sending response...")
-            client_socket.sendall(json.dumps(response).encode('utf-8'))
+            print("Key exchange successful, AES key derived.")
             return True
-
-        except Exception as error:
-            print(f'Failed in key exchange process with error: {error}')
+        except Exception as e:
+            print(f"Error during key exchange: {e}")
             return False
+
 
     def handle_message_reception(self, message):
         print(message)
