@@ -52,10 +52,17 @@ def encrypt_message(message, aes_key):
 def decrypt_message(encrypted_message, aes_key):
     try:
         iv = bytes.fromhex(encrypted_message['iv'])
+        print("iv :", iv)
+
         cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
         decryptor = cipher.decryptor()
+        
         decrypted = decryptor.update(bytes.fromhex(encrypted_message['content'])) + decryptor.finalize()
-        decrypted_message = json.loads(decrypted.decode('utf-8'))
+        print("Decrypted :", decrypted)
+        
+        decrypted_message = json.loads(decrypted)
+        print("Decrypted message :", decrypted_message)
+        
         content, timestamp = decrypted_message['content'], decrypted_message['timestamp']
         if datetime.now() - datetime.fromtimestamp(timestamp / 1000) > timedelta(minutes=5):
             print('Message timestamp is outside the acceptable range. Possible replay attack.')

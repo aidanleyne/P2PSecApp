@@ -48,9 +48,13 @@ def load_private_key():
 def generate_aes_key():
     return os.urandom(32)
 
-def generate_dh_keys():
+def get_dh_parameters():
+    return dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+
+def generate_dh_keys(parameters=None):
     try:
-        parameters = dh.generate_parameters(generator=2, key_size=1024, backend=default_backend())
+        if parameters is None:
+            parameters = get_dh_parameters()
         private_key = parameters.generate_private_key()
         public_key = private_key.public_key()
         return {'public_key': public_key, 'private_key': private_key}

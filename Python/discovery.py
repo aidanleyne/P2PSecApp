@@ -3,16 +3,15 @@ import socket
 import select
 import time
 import json
-import base64
 import traceback
 from zeroconf import Zeroconf, ServiceInfo, ServiceBrowser
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.serialization import load_pem_public_key, PublicFormat, Encoding
+from cryptography.hazmat.primitives.asymmetric import dh
+from cryptography.hazmat.primitives import serialization, hashes, padding
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import keygen as kg
-import messaging
+from messaging import encrypt_message, decrypt_message
 from storage import encrypt_data
 from service import ServiceListener
 import threading
@@ -50,54 +49,54 @@ class discovery:
             if ready_to_read:
                 client_socket, client_address = server_socket.accept()
                 print(f'Accepted connection from {client_address}')
-                client_thread = threading.Thread(target=self._handle_client_connection, args=(client_socket, client_address))
+                client_thread = threading.Thread(target=self.handle_client_connection, args=(client_socket, client_address))
                 client_thread.daemon = True
                 client_thread.start()
                 with self.lock:
                     self.clients.append(client_socket)
 
-    def _handle_client_connection(self, socket, address):
-        data_buffer = ''
+    def handle_client_connection(self, client_socket, address):
+        data_buffer = b''
         try:
             while True:
-                data = socket.recv(4096).encode('utf-8')
+                data = client_socket.recv(4096)
                 if not data:
                     break
                 data_buffer += data
-                while '\n' in data_buffer:
-                    message, data_buffer = data_buffer.split('\n', 1)
+                while b'\n' in data_buffer:
+                    message, _, data_buffer = data_buffer.partition(b'\n')
                     try:
-                        message_json = json.loads(message.rstrip('\n'))
-                        if message_json['action'] == 'keyExchange':
-                            if self.key_exchange(message_json, socket):
-                                print("Key exchange complete.")
-                        elif message_json['action'] == 'sendMessage':
+                        #decode THEN to json
+                        message_json = json.loads(message.decode('utf-8'))
+                        action = message_json.get('action')
+                        if action == 'keyExchange' and self.key_exchange(message_json, client_socket):
+                            print("Key exchange complete.")
+                        elif action == 'sendMessage':
+                            print("Message Recieved...")
                             self.handle_message_reception(message_json)
                     except json.JSONDecodeError as error:
                         print(f'Failed to parse incoming message: {error}')
         except Exception as error:
             print(f'Connection to {address} closed with error: {error}')
-            socket.close()
-            self.clients.remove(socket)
+        finally:
+            client_socket.close()
+            self.clients.remove(client_socket)
 
     def key_exchange(self, message, client_socket):
         try:
-            #generate keys
-            keys = kg.generate_dh_keys()
+            #generate server keys
+            parameters = kg.get_dh_parameters()
+            keys = kg.generate_dh_keys(parameters=parameters)
             server_private_key, server_public_key = keys['private_key'], keys['public_key']
+            
+            #Generate key based on passed numbers
+            peer_public_numbers = dh.DHPublicNumbers(int(message['dhPublicKey'], 16), parameters.parameter_numbers())
+            peer_public_key = peer_public_numbers.public_key(default_backend())
 
-            # Check the received json
-            print("Message recieved :", message)
-
-            # Decode the client's public key
-            peer_public_key = serialization.load_pem_public_key(
-                base64.b64decode(message['dhPublicKey']), 
-                backend=default_backend()
-                )
+            print("Received Fingerprint:", message['fingerprint'])
 
             print("Exchanging keys...")
             # Compute the shared secret
-            # THIS IS WHERE THE CODE IS CURRENTLY FAILING
             try:
                 shared_secret = server_private_key.exchange(peer_public_key)
             except Exception as e:
@@ -110,14 +109,16 @@ class discovery:
             self.aes_key = HKDF(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=None
+                salt=None,
+                info=b'handshake data'
                 ).derive(shared_secret)
-
-            print("preparing response...")
+            
+            print(self.aes_key)
+            
             # Prepare and send the response
             response = {
                 'action': 'keyExchangeResponse',
-                'dhPublicKey': server_public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).hex(),
+                'dhPublicKey': hex(server_public_key.public_numbers().y)[2:],
                 'fingerprint': kg.get_public_key_fingerprint(server_public_key)
                 }
 
@@ -130,27 +131,27 @@ class discovery:
             return False
 
     def handle_message_reception(self, message):
-        if self.aes_key is None:
-            print('AES key is not set. Unable to decrypt message.')
-            return
+        print(message)
+        # Decrypt the message
         try:
-            encrypted_data = json.loads(message['message'])
-            decrypted_message = self._decrypt_(encrypted_data, self.aes_key).decode('utf-8')
-            # Secure storage
-            storage_path = os.path.join(os.path.dirname(__file__), 'messages.json')
-            with open(storage_path, 'a') as file:
-                encrypted_storage_data = encrypt_data(decrypted_message)
-                file.write(json.dumps(encrypted_storage_data) + '\n')
-            print('Decrypted Message:', decrypted_message)
-        except Exception as error:
-            print(f'Error during message reception: {error}')
-
-    def _decrypt_(self, encrypted_data, aes_key):
-        iv = bytes.fromhex(encrypted_data['iv'])
-        ciphertext = bytes.fromhex(encrypted_data['content'])
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
-        decryptor = cipher.decryptor()
-        return decryptor.update(ciphertext) + decryptor.finalize()
+            decrypted_bytes = decrypt_message(message['message'], self.aes_key)
+        except Exception as e:
+            print(f"Failed to decrypt received message: {e}")
+            return
+        
+        if decrypted_bytes is None:
+                print("Failed to decrypt message.")
+                return
+            
+        try:
+            # Decode and print the decrypted message
+            decrypted_message_json = decrypted_bytes.decode('utf-8')
+            decrypted_message_dict = json.loads(decrypted_message_json)
+            print("Decrypted Message Content:", decrypted_message_dict['content'])
+            print("Message Timestamp:", decrypted_message_dict['timestamp'])
+        except Exception as e:
+            print(f"Failed to process received message: {e}")
+            return
 
     def discover(self):
         listener = ServiceListener(self)
@@ -167,46 +168,47 @@ class discovery:
 
         # Generating Diffie-Hellman keys and getting the public key fingerprint
         print("Generating keys for exchange...")
-        dh_keys = kg.generate_dh_keys()
+        parameters = kg.get_dh_parameters()
+        dh_keys = kg.generate_dh_keys(parameters=parameters)
         fingerprint = kg.get_public_key_fingerprint(dh_keys['public_key'])
 
-        # Preparing the key exchange message
-        dh_public_key_pem = dh_keys['public_key'].public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
         key_exchange_message = {
             'action': 'keyExchange',
-            'dhPublicKey': base64.b64encode(dh_public_key_pem).decode('utf-8'),
+            'dhPublicKey': hex(dh_keys['public_key'].public_numbers().y)[2:],
             'fingerprint': fingerprint
         }
 
         print("Keys generated. Ready to send.")
-        # Sending the key exchange message
+        #To json THEN encode
         client_socket.sendall((json.dumps(key_exchange_message) + '\n').encode('utf-8'))
         print("Message sent :", json.dumps(key_exchange_message))
 
         # Listen for a response to complete the key exchange process
         response_data = client_socket.recv(4096)
-        print("Response recieved.")
         response = json.loads(response_data.decode('utf-8'))
         if response['action'] == 'keyExchangeResponse':
             print(f"Received Fingerprint: {response['fingerprint']}")
             # Complete the exchnage process. Derive the AES key using the received DH public key
-            peer_public_key_pem = bytes.fromhex(response['dhPublicKey'])
-            peer_public_key = kg.load_public_key(peer_public_key_pem)
+            peer_public_numbers = dh.DHPublicNumbers(int(response['dhPublicKey'], 16), parameters.parameter_numbers())
+            peer_public_key = peer_public_numbers.public_key(default_backend())
 
-            shared_secret = dh_keys['private_key'].exchange(peer_public_key)
+            try:
+                shared_secret = dh_keys['private_key'].exchange(peer_public_key)
+            except Exception as e:
+                print(f"Failed in key exchange process with error: {e}")
+                traceback.print_exc()
 
             # Derive the AES key from the shared secret
-            aes_key = HKDF(
+            self.aes_key = HKDF(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=None
+                salt=None,
+                info=b'handshake data'
             ).derive(shared_secret)
 
-            # Save the AES key
-            self.aes_key = aes_key
+            print(self.aes_key)
+
+            print("Connection complete.")
 
     def send_message(self, message, is_file=False):
         if not self.socket or not self.aes_key:
@@ -230,15 +232,15 @@ class discovery:
         }
 
         # Encrypt the message
-        encrypted_message = messaging.encrypt_message(message_with_timestamp, self.aes_key)
+        encrypted_message = encrypt_message(json.dumps(message_with_timestamp), self.aes_key)
 
         # Send the encrypted message
         try:
-            self.socket.sendall(json.dumps({
+            self.socket.sendall((json.dumps({
                 'action': 'sendMessage',
-                'message': json.dumps(encrypted_message),
+                'message': encrypted_message,
                 'isFile': is_file
-            }).encode('utf-8'))
+            }) + '\n').encode('utf-8'))
             print('Message sent.')
         except Exception as e:
             print(f'Failed to send message: {e}')
@@ -274,7 +276,6 @@ class discovery:
 def main():
     dsc = discovery()
     dsc.publish()
-
 
 if __name__ == "__main__":
     main()
