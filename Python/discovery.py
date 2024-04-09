@@ -60,7 +60,7 @@ class discovery:
         data_buffer = ''
         try:
             while True:
-                data = socket.recv(4096).decode('utf-8')
+                data = socket.recv(4096).encode('utf-8')
                 if not data:
                     break
                 data_buffer += data
