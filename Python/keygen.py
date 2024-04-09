@@ -5,6 +5,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 import os
 
+dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+
 def generate_and_save_keys():
     try:
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -49,12 +51,12 @@ def generate_aes_key():
     return os.urandom(32)
 
 def get_dh_parameters():
-    return dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+    return dh_parameters
 
 def generate_dh_keys(parameters=None):
     try:
         if parameters is None:
-            parameters = get_dh_parameters()
+            parameters = dh_parameters
         private_key = parameters.generate_private_key()
         public_key = private_key.public_key()
         return {'public_key': public_key, 'private_key': private_key}

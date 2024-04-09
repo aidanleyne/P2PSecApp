@@ -85,12 +85,11 @@ class discovery:
     def key_exchange(self, message, client_socket):
         try:
             # Generate server DH keys based on predefined parameters
-            parameters = kg.get_dh_parameters()
-            server_private_key = parameters.generate_private_key()
-            server_public_key = server_private_key.public_key()
+            dh_keys = kg.generate_dh_keys()
+            server_private_key, server_public_key = dh_keys['private_key'], dh_keys['public_key']
 
             # Convert client's public key from received message
-            client_public_numbers = dh.DHPublicNumbers(int(message['dhPublicKey'], 16), parameters.parameter_numbers())
+            client_public_numbers = dh.DHPublicNumbers(int(message['dhPublicKey'], 16), kg.get_dh_parameters().parameter_numbers())
             client_public_key = client_public_numbers.public_key(default_backend())
 
             # Derive shared secret
@@ -107,6 +106,8 @@ class discovery:
                 info=b'handshake data',
                 backend=default_backend()
             ).derive(shared_secret)
+
+            print("AES Key :", self.aes_key.hex())
 
             # Send DH public key and fingerprint back to client
             response = {
@@ -161,20 +162,18 @@ class discovery:
 
         # Generating Diffie-Hellman keys and getting the public key fingerprint
         print("Generating keys for exchange...")
-        parameters = kg.get_dh_parameters()
-        dh_keys = kg.generate_dh_keys(parameters=parameters)
-        fingerprint = kg.get_public_key_fingerprint(dh_keys['public_key'])
+        dh_keys = kg.generate_dh_keys()
 
         key_exchange_message = {
             'action': 'keyExchange',
-            'dhPublicKey': hex(dh_keys['public_key'].public_numbers().y)[2:],
-            'fingerprint': fingerprint
+            'dhPublicKey': format(dh_keys['public_key'].public_numbers().y, 'x'),
+            'fingerprint': kg.get_public_key_fingerprint(dh_keys['public_key'])
         }
 
         print("Keys generated. Ready to send.")
         #To json THEN encode
         client_socket.sendall((json.dumps(key_exchange_message) + '\n').encode('utf-8'))
-        print("Message sent :", json.dumps(key_exchange_message))
+        print("Sent Fingerprint :", key_exchange_message['fingerprint'])
 
         # Listen for a response to complete the key exchange process
         response_data = client_socket.recv(4096)
@@ -182,11 +181,14 @@ class discovery:
         if response['action'] == 'keyExchangeResponse':
             print(f"Received Fingerprint: {response['fingerprint']}")
             # Complete the exchnage process. Derive the AES key using the received DH public key
-            peer_public_numbers = dh.DHPublicNumbers(int(response['dhPublicKey'], 16), parameters.parameter_numbers())
+            peer_public_numbers = dh.DHPublicNumbers(int(response['dhPublicKey'], 16), kg.get_dh_parameters().parameter_numbers())
             peer_public_key = peer_public_numbers.public_key(default_backend())
 
             try:
                 shared_secret = dh_keys['private_key'].exchange(peer_public_key)
+                
+                # Logging for debug
+                print(f"Shared secret: {shared_secret.hex()}")
             except Exception as e:
                 print(f"Failed in key exchange process with error: {e}")
                 traceback.print_exc()
@@ -196,10 +198,11 @@ class discovery:
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=None,
-                info=b'handshake data'
+                info=b'handshake data',
+                backend=default_backend()
             ).derive(shared_secret)
 
-            print(self.aes_key)
+            print("AES Key :", self.aes_key.hex())
 
             print("Connection complete.")
 
