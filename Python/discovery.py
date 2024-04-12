@@ -1,4 +1,3 @@
-import os
 import socket
 import select
 import time
@@ -6,13 +5,11 @@ import json
 import traceback
 from zeroconf import Zeroconf, ServiceInfo, ServiceBrowser
 from cryptography.hazmat.primitives.asymmetric import dh
-from cryptography.hazmat.primitives import serialization, hashes, padding
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import keygen as kg
 from messaging import encrypt_message, decrypt_message
-from storage import encrypt_data
 from service import ServiceListener
 import threading
 

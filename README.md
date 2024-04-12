@@ -22,4 +22,14 @@ A P2P Secure Communication Application for W24 CISC 468.
   - It should be noted that messages are stored in ciphertext to ensure confidentiality and integrity
 - Messages are not limited to plaintext. Various file-types can also be sent
   - For this, we convert the file to hexadecimal before encryption
-- 
+
+## Run Instructions
+### JavaScript
+1. Download and install node.js
+2. run ```npm install```
+3. To run the application, navigate to the JavaScript folder and run ```node app.js```
+
+### Python
+1. Download and Install Python
+2. run the command ```pip install requirements.txt```
+3. To run the application, navigate to the Python folder and run ```py.exe app.py``` or ```./app.py```

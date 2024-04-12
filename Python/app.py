@@ -1,3 +1,5 @@
+#!/user/bin/env python3
+
 import os
 import keygen as kg
 from discovery import discovery
